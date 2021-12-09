@@ -1,0 +1,52 @@
+# Docker
+# Build a Docker image
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+  image: petersendev/m4b-tool-base
+
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+      - task: DotnetGlobalToolInstaller@0
+        displayName: install nbgv
+        inputs:
+          name: 'nbgv'
+
+      - script: nbgv cloud -c -a
+        displayName: set version
+        condition: and(succeeded(), eq(variables['system.pullrequest.isfork'], false))
+
+      - task: Docker@2
+        displayName: docker build and push (dev)
+        condition: and(succeeded(), ne(variables['Build.SourceBranchName'], 'main'))
+        inputs:
+          containerRegistry: 'DockerHub'
+          repository: $(image)
+          command: 'buildAndPush'
+          Dockerfile: 'Dockerfile'
+          tags: 'dev'
+
+      - task: Docker@2
+        displayName: docker build and push (main)
+        condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'main'))
+        inputs:
+          containerRegistry: 'DockerHub'
+          repository: $(image)
+          command: 'buildAndPush'
+          Dockerfile: 'Dockerfile'
+          tags: |
+            latest
+            $(NBGV_SemVer1)
